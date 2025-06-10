@@ -1,0 +1,52 @@
+
+services:
+  web:
+    restart: always
+    build: ./cryptocoin
+    expose:
+      - "8000"
+    links:
+      - postgres:postgres
+      # - redis:redis
+    volumes:
+      - web-django:/code
+      - web-static:/code/cryptocoin/static
+      - web-media:/code/cryptocoin/media
+    # env_file: .env
+    environment:
+      - DEBUG='True'
+      - RUN_IN_DOCKER='True'
+    depends_on:
+      - postgres
+    command: >
+      sh -c "python manage.py makemigrations --noinput &&
+             python manage.py migrate --noinput &&
+             python manage.py setdefaults &&
+             python manage.py collectstatic --noinput &&
+             /usr/local/bin/gunicorn cryptocoin.wsgi:application -w 2 -b :8000"
+
+  nginx:
+    restart: always
+    build: ./nginx/
+    ports:
+      - "80:80"
+    volumes:
+      - web-static:/code/cryptocoin/static
+      - web-media:/code/cryptocoin/media
+    links:
+      - web:web
+
+  postgres:
+    restart: always
+    image: postgres:latest
+    environment:
+      POSTGRES_HOST_AUTH_METHOD: "trust"
+    volumes:
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+      - pgdata:/var/lib/postgresql/data/
+
+volumes:
+  web-django:
+  web-static:
+  web-media:
+  pgdata:
